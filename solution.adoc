@@ -1,0 +1,101 @@
+# Proposition de solution pour le TD DOCKERFILE LAMP 
+
+#  Etape 1 : Réseau + BDD
+Dans notre projet, nous devrons interconnecter des conteneurs ensemble. Créons donc un réseau :
+
+[source,bash]
+.Création d'un réseau
+----
+docker network create --subnet=172.24.0.0/16 lamp_network
+----
+
+Puis, nous allons créer dans ce réseau deux conteneurs basés sur les images de `mongo` et de `mysql`.
+
+[source,bash]
+----
+docker container run  -d --name srvmysql  --network lamp_network -e MYSQL_ROOT_PASSWORD=password1234 -e MYSQL_DATABASE=library -e MYSQL_USER=baptiste -e MYSQL_PASSWORD=bb1212 mysql
+----
+
+[source,bash]
+----
+docker run -d --name srvmongo --network lamp_network -e MONGO_INITDB_ROOT_USERNAME=esportroot   -e MONGO_INITDB_ROOT_PASSWORD=password1234 mongo
+----
+
+#  Etape 2 : Adapter le code source des applications
+
+Maintenant que nos réseaux sont créés, nous savons que nos services sont accessibles dans une application via le nom de conteneur.
+
+Adaptons donc le code source de l'application.
+
+## Application `biblio`
+
+* Connexion à `srvmysql` :
+
+[source,php]
+.add_block.php et create_db.php index.php
+----
+$servername = "srvmysql";
+$username = "root";
+$password = "password1234";
+$dbname = "library";
+// Some code
+----
+
+## API  `esport`
+
+* Connexion à `srvmongo` de l'API :
+
+[source,php]
+.esport-api/server.js
+----
+const MONGODB_URI = 'mongodb://root:password1234@srvmongo:27017/esports';
+----
+
+#  Etape 3 : Le Dockerfile du conteneur Apache
+
+Nous allons créer un premier dossier nommé `apache` qui contiendra la configuration d'un conteneur Apache.
+Basé sur la distribution *Ubuntu:latest*.
+Dans ce serveur Apache, il y aura les fichiers des frontends de nos deux applications.
+
+[source,dockerfile]
+.apache/Dockerfile
+----
+include::./apache/Dockerfile[]
+----
+
+Je monte ensuite une nouvelle image :
+
+[source,]
+----
+docker build -t srvapache .
+----
+
+On monte un conteneur basé sur cette image :
+
+[source,]
+----
+docker container run --name srvapache -d -p 80:80 --network lamp_network srvapache
+----
+
+#  Etape 4 : Le Dockerfile du conteneur Nodejs
+
+[source,dockerfile]
+.apache/Dockerfile
+----
+include::./nodejs/Dockerfile[]
+----
+
+On build :
+
+[source,]
+----
+docker build -t srvnodejs .
+----
+
+On monte le conteneur :
+
+[source,]
+----
+docker container run -d --name srvnodejs -p 3000:3000 --network lamp_network srvnodejs
+----
+

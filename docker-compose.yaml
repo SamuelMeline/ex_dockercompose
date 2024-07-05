@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./apache/esport-front
+    image: php:8.1-apache
+    container_name: lamp_web
+    volumes:
+      - ./apache/esport-front:/var/www/html
+    ports:
+      - "80:80"
+    networks:
+      - esport
+    depends_on:
+      - api
+  
+  mongo:
+    image: mongo:latest
+    container_name: srvmongo
+    ports: 
+      - "27017:27017"
+    networks:
+      - esport
+    volumes:
+      - mongo_data:/data/db
+
+  api:
+    build:
+      context: ./nodejs/esport-api
+    image: node:latest
+    container_name: nodejs_app
+    environment:
+      - MONGO_URI=mongodb://srvmongo:27017/esports
+    ports: 
+      - "3000:3000"
+    networks:
+      - esport
+    depends_on:
+      - mongo
+    command:
+      - npm
+      - start
+
+networks:
+  esport:
+    driver: bridge
+
+volumes: 
+  mongo_data:
